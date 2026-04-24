@@ -37,65 +37,7 @@ const createSolidTexture = (color: string) => {
   });
 };
 
-// Helper: Generates a WebGL Texture from a shape using canvas pixels
-const createShapeTexture = (
-  shapeType: string, 
-  color: string, 
-  params: { cornerRadius?: number, points?: number, innerRadius?: number, outerRadius?: number, sides?: number, roundness?: number }
-) => {
-  const key = `shape_${shapeType}_${color}_${JSON.stringify(params)}`;
-  return getCachedTexture(key, () => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 512;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.fillStyle = color;
-      ctx.translate(256, 256);
-      
-      if (shapeType === 'Circle') {
-        ctx.beginPath();
-        ctx.arc(0, 0, 250, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (shapeType === 'Star') {
-        const points = params.points || 5;
-        const outer = 250;
-        const inner = params.innerRadius ? (params.innerRadius / (params.outerRadius || 500)) * 250 : 125;
-        
-        ctx.beginPath();
-        for (let i = 0; i < points * 2; i++) {
-          const r = i % 2 === 0 ? outer : inner;
-          const a = (i * Math.PI) / points - Math.PI / 2;
-          ctx.lineTo(r * Math.cos(a), r * Math.sin(a));
-        }
-        ctx.closePath();
-        ctx.fill();
-      } else if (shapeType === 'Polygon') {
-        const sides = params.sides || 6;
-        const r = 250;
-        ctx.beginPath();
-        for (let i = 0; i < sides; i++) {
-          const a = (i * 2 * Math.PI) / sides - Math.PI / 2;
-          ctx.lineTo(r * Math.cos(a), r * Math.sin(a));
-        }
-        ctx.closePath();
-        ctx.fill();
-      } else {
-        // Rectangle
-        const cr = params.cornerRadius ? (params.cornerRadius / 500) * 250 : 0;
-        ctx.beginPath();
-        if (cr > 0) {
-          ctx.roundRect(-250, -250, 500, 500, cr);
-        } else {
-          ctx.rect(-250, -250, 500, 500);
-        }
-        ctx.fill();
-      }
-    }
-    return PIXI.Texture.from(canvas);
-  });
-};
-
+// Helper: Generates a WebGL Texture from a shape using canvas pixels (unused, kept but without JSON.stringify if it was used)
 // Helper: Generates a WebGL Texture from a gradient
 const createGradientTexture = (
   color1: string, 
@@ -502,7 +444,7 @@ const EffectRenderer: React.FC<{
         return f;
       }
     } catch (e) {
-      console.error(`Error creating filter ${effectType}:`, e);
+      console.error(`Error creating filter ${effectType}:`, e instanceof Error ? e.message : String(e));
     }
     return null;
   }, [effect.subtype, nodeId, pipelineKey, itemPath, engineVersion]);
@@ -530,11 +472,18 @@ const EffectRenderer: React.FC<{
   const containerBlendMode = blendFilterArray ? PIXI.BLEND_MODES.NORMAL : blendMode;
 
   return (
-    <Container {...({ alpha: opacity, ...transformProps } as any)}>
+    <Container
+      alpha={opacity}
+      x={transformProps.x}
+      y={transformProps.y}
+      scale={transformProps.scale}
+      rotation={transformProps.rotation}
+      skew={transformProps.skew}
+    >
       {/* Base layer - only rendered if we are masking the effect over it */}
       {hasEnabledMasks && children}
       
-      <Container {...({ blendMode: containerBlendMode } as any)} filters={blendFilterArray || undefined}>
+      <Container blendMode={containerBlendMode} filters={blendFilterArray || undefined}>
         <MaskStackRenderer 
           masks={effect.masks || []} 
           nodeId={nodeId} 
@@ -542,7 +491,7 @@ const EffectRenderer: React.FC<{
           parentPath={itemPath}
           engineRef={engineRef}
           visited={visited}
-          depth={depth}
+          depth={depth + 1}
         >
           <Container filters={filter ? [filter] : undefined}>
             {children}
@@ -599,7 +548,7 @@ const MaskRenderer: React.FC<{
   const containerBlendMode = blendFilterArray ? PIXI.BLEND_MODES.NORMAL : blendMode;
 
   return (
-    <Container {...({ alpha: opacity, blendMode: containerBlendMode } as any)} filters={blendFilterArray || undefined}>
+    <Container alpha={opacity} blendMode={containerBlendMode} filters={blendFilterArray || undefined}>
       <EffectStackRenderer 
         effects={mask.effects || []}
         nodeId={nodeId}
@@ -607,7 +556,7 @@ const MaskRenderer: React.FC<{
         parentPath={itemPath}
         engineRef={engineRef}
         visited={visited}
-        depth={depth}
+        depth={depth + 1}
       >
         <MaskItemRenderer 
           mask={mask} 
@@ -652,7 +601,7 @@ const MaskStackRenderer: React.FC<{
   return (
     <Container filters={isolationFilter}>
       {children}
-      <Container {...({ blendMode: PIXI.BLEND_MODES.DST_IN } as any)} filters={maskIsolationFilter}>
+      <Container blendMode={PIXI.BLEND_MODES.DST_IN} filters={maskIsolationFilter}>
         {masks.filter(m => m.enabled).map(mask => (
           <MaskRenderer 
              key={mask.id}
@@ -662,7 +611,7 @@ const MaskStackRenderer: React.FC<{
              itemPath={[...parentPath, 'masks', mask.id]}
              engineRef={engineRef}
              visited={visited}
-             depth={depth}
+             depth={depth + 1}
           />
         ))}
       </Container>
@@ -689,7 +638,7 @@ export const PipelineRenderer: React.FC<{
       parentPath={[]}
       engineRef={engineRef}
       visited={visited}
-      depth={depth}
+      depth={depth + 1}
     >
       <EffectStackRenderer 
         effects={pipeline.effects}
@@ -698,7 +647,7 @@ export const PipelineRenderer: React.FC<{
         parentPath={[]}
         engineRef={engineRef}
         visited={visited}
-        depth={depth}
+        depth={depth + 1}
       >
         {children}
       </EffectStackRenderer>
@@ -766,7 +715,7 @@ const GeneratorRenderer: React.FC<{
     try {
       return PIXI.Texture.from(imageUrl);
     } catch (e) {
-      console.error('Error loading texture:', e);
+      console.error('Error loading texture:', e instanceof Error ? e.message : String(e));
       return PIXI.Texture.EMPTY;
     }
   }, [genType, imageUrl]);
@@ -978,7 +927,8 @@ const CompOpRenderer: React.FC<{
           </PipelineRenderer>
         </Container>
         <Container 
-          {...({ alpha: topAlpha * blendAlpha, blendMode: containerBlendMode } as any)}
+          alpha={topAlpha * blendAlpha}
+          blendMode={containerBlendMode}
           filters={blendFilterArray || undefined}
         >
           <PipelineRenderer pipeline={topPipeline} nodeId={nodeId} pipelineKey={swapInputs ? "inputA_pipeline" : "inputB_pipeline"} engineRef={engineRef} visited={newVisited} depth={depth + 1}>
@@ -1143,7 +1093,7 @@ const CanvasEngine: React.FC = () => {
             }
           }
         } catch (e) {
-          console.error("Auto adjust failed:", e);
+          console.error("Auto adjust failed:", e instanceof Error ? e.message : String(e));
         } finally {
           clearAutoAdjustRequest();
         }

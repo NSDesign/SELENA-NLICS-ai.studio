@@ -72,7 +72,7 @@ const App: React.FC = () => {
     try {
       await exportProject(activePreviewId, nodes, exportSettings, (p) => setExportProgress(p));
     } catch (error) {
-      console.error('Export failed:', error);
+      console.error('Export failed:', error instanceof Error ? error.message : String(error));
     } finally {
       setExporting(false);
     }
