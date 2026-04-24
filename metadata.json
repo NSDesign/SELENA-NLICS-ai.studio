@@ -1,0 +1,5 @@
+{
+  "name": "Project SELENA - NLICS",
+  "description": "Non-Linear Image Compositing System with real-time WebGL rendering and list-based dependency management.",
+  "requestFramePermissions": []
+}
